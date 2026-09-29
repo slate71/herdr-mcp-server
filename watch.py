@@ -34,6 +34,12 @@ def outcome(agent: herdr.Agent) -> str:
             text += " It asks several questions at once; answer them in herdr."
         else:
             text += f" Ask the person, then call answer_herdr_permission({pane})."
+    elif agent.status in ("idle", "done") and log.interrupted:
+        # stopped on purpose, so sending it again would undo the person's stop
+        text = (
+            f'"{agent.title}" was interrupted in herdr before it finished. Tell the '
+            "person, and send it more work only if they ask."
+        )
     elif agent.status in ("idle", "done"):
         text = f'"{agent.title}" finished.'
     else:

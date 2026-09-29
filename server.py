@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Annotated, Literal
 
+import anyio
 import uvicorn
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -68,6 +69,15 @@ async def _follow(ctx: Context, agent: herdr.Agent, *, expect_work: bool) -> str
         )
     except herdr.HerdrError as exc:
         raise ToolError(str(exc)) from exc
+    except anyio.get_cancelled_exc_class():
+        # the client cancelled the call, which means it wants the work itself stopped;
+        # shielded, as every await in a cancelled scope is cancelled too
+        with anyio.CancelScope(shield=True), contextlib.suppress(herdr.HerdrError):
+            current = await herdr.get(agent.pane_id)
+            if current is not None and current.status == "working":
+                await herdr.keys(agent.pane_id, "esc")
+                logger.info("stopped %s, as its call was cancelled", agent.pane_id)
+        raise
     if settled is not None:
         return watch.outcome(settled)
     request = ctx.request_context.request

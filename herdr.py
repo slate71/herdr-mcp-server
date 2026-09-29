@@ -65,7 +65,9 @@ class Agent:
         """One line naming the agent and its state, or with ``detail`` its last message."""
         log = self.transcript
         state = self.status
-        if self.status == "blocked":
+        if self.status in ("idle", "done") and log.interrupted:
+            state = "interrupted"
+        elif self.status == "blocked":
             state = f"blocked: {log.pending_text()}" if log.pending else "blocked"
         age = ""
         if log.mtime:

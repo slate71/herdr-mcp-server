@@ -10,6 +10,8 @@ from config import settings
 
 # only the tail is read, so a long session costs the same as a short one
 _TAIL_BYTES = 256 * 1024
+# how Claude Code records that the person stopped its turn, e.g. with esc in the terminal
+_INTERRUPTED = "[Request interrupted by user"
 
 
 @dataclass
@@ -19,6 +21,8 @@ class Transcript:
     # the tool call still waiting for its result: {"name", "input"}
     pending: dict | None = None
     mtime: float = 0.0
+    # the person stopped the latest turn before it finished
+    interrupted: bool = False
 
     def pending_text(self) -> str:
         """The waiting call in words: the permission it needs or the question it asks."""
@@ -93,14 +97,23 @@ def read(session_id: str) -> Transcript:
         content = (line.get("message") or {}).get("content")
         if isinstance(content, str):
             # a prompt the person typed starts a turn, and the text said before it is old
-            log.last_text = ""
+            log.last_text, log.interrupted = "", False
             continue
         if not isinstance(content, list):
             continue
         for block in content:
             kind = block.get("type")
-            if kind == "text" and line["type"] == "assistant" and block.get("text"):
-                log.last_text = block["text"].strip()
+            text = block.get("text") or ""
+            if (
+                kind == "text"
+                and line["type"] == "user"
+                and text.startswith(_INTERRUPTED)
+            ):
+                # the turn ends here, and a call it was in the middle of never returns
+                log.interrupted = True
+                calls.clear()
+            elif kind == "text" and line["type"] == "assistant" and text:
+                log.last_text = text.strip()
             elif kind == "tool_use":
                 calls[block.get("id", "")] = block
             elif kind == "tool_result":

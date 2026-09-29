@@ -72,3 +72,22 @@ def test_question_choices(tmp_path, monkeypatch) -> None:
     assert log.option("dog") == 2
     assert log.option("2") == 2
     assert log.option("a hamster") is None
+
+
+def _interrupt() -> dict:
+    block = {"type": "text", "text": "[Request interrupted by user for tool use]"}
+    return {"type": "user", "message": {"content": [block]}}
+
+
+def test_interrupt_ends_the_turn(tmp_path, monkeypatch) -> None:
+    lines = [_prompt("a"), _say("working on it"), _call("t1", "Bash", {}), _interrupt()]
+    _write(tmp_path, monkeypatch, lines)
+    log = transcript.read("s1")
+    assert log.interrupted
+    # the call it was cut off in never returns, so it is not waiting on anyone
+    assert log.pending is None
+
+
+def test_new_prompt_clears_an_interrupt(tmp_path, monkeypatch) -> None:
+    _write(tmp_path, monkeypatch, [_prompt("a"), _interrupt(), _prompt("b")])
+    assert not transcript.read("s1").interrupted
