@@ -39,3 +39,17 @@ async def test_failed_start_closes_a_workspace_it_made(monkeypatch) -> None:
     with pytest.raises(herdr.HerdrError):
         await herdr.start("do it", "/x", "claude", "home")
     assert calls[-1] == ("workspace", "close", "w9")
+
+
+async def test_a_stalled_prompt_is_sent_with_enter(monkeypatch) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    async def run(*args: str) -> dict:
+        calls.append(args)
+        if args[:2] == ("agent", "prompt"):
+            raise herdr.HerdrError("agent_prompt_stalled: no state change")
+        return {}
+
+    monkeypatch.setattr(herdr, "run", run)
+    await herdr.submit("w1:p5", "do it")
+    assert calls[-1] == ("agent", "send-keys", "w1:p5", "enter")

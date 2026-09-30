@@ -147,15 +147,26 @@ async def start(prompt: str, cwd: str, kind: str, workspace: str) -> Agent:
     except HerdrError:
         await run(*cleanup)
         raise
-    await run("agent", "prompt", pane_id, prompt)
+    await submit(pane_id, prompt)
     agent = await get(pane_id)
     if agent is None:
         raise HerdrError(f"the new {KINDS[kind]} session in {pane_id} went away")
     return agent
 
 
-async def prompt(pane_id: str, text: str) -> None:
-    await run("agent", "prompt", pane_id, text)
+async def submit(pane_id: str, text: str) -> None:
+    """Type ``text`` into the agent and send it, pressing Enter again if it sat unsent."""
+    # any state change within herdr's 5 s stall window shows the prompt went out
+    until = [a for s in ("working", "blocked", "idle", "done") for a in ("--until", s)]
+    try:
+        await run(
+            "agent", "prompt", pane_id, text, "--wait", *until, "--timeout", "10000"
+        )
+    except HerdrError as exc:
+        # an agent still settling after start can take the text yet drop its Enter
+        if not str(exc).startswith("agent_prompt_stalled"):
+            raise
+        await keys(pane_id, "enter")
 
 
 async def keys(pane_id: str, *names: str) -> None:

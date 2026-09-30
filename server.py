@@ -171,7 +171,7 @@ async def prompt_herdr_agent(
     found = await _find(agent)
     try:
         if found.status != "blocked":
-            await herdr.prompt(found.pane_id, text)
+            await herdr.submit(found.pane_id, text)
         elif choice := found.transcript.option(text):
             # the question's choices are numbered, and a digit picks one
             await herdr.keys(found.pane_id, str(choice))
