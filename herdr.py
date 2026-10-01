@@ -51,6 +51,7 @@ class Agent:
     focused: bool
     session_id: str
     kind: str = "claude"
+    tab_id: str = ""
 
     @property
     def transcript(self) -> transcript.Transcript:
@@ -77,6 +78,8 @@ class Agent:
             f'"{self.title}" ({KINDS[self.kind]}, pane {self.pane_id}) [{state}] '
             f"in {self.folder} (workspace {self.workspace}{age})"
         )
+        if self.session_id:
+            line += f", session {self.session_id}"
         if detail and log.last_text:
             line += f"\nLast message: {log.last_text}"
         return line
@@ -97,6 +100,7 @@ def _agent(agent: dict, labels: dict[str, str]) -> Agent:
         focused=bool(agent.get("focused")),
         session_id=session.get("value") or "",
         kind=agent.get("agent") or "claude",
+        tab_id=agent.get("tab_id") or "",
     )
 
 
@@ -122,8 +126,13 @@ async def get(pane_id: str) -> Agent | None:
     return _agent(found["agent"], labels)
 
 
-async def start(prompt: str, cwd: str, kind: str, workspace: str) -> Agent:
-    """Start an agent of ``kind`` on ``prompt`` in a new tab of ``workspace``."""
+async def start(
+    prompt: str, cwd: str, kind: str, workspace: str, *, resume: str = ""
+) -> Agent:
+    """Start an agent of ``kind`` in a new tab of ``workspace``, on ``prompt`` if any.
+
+    With ``resume``, the agent picks up that session where it left off.
+    """
     workspaces = (await run("workspace", "list")).get("workspaces") or []
     existing = next((w for w in workspaces if w.get("label") == workspace), None)
     # tabs are created unlabelled, so herdr keeps naming them from what runs there
@@ -142,12 +151,14 @@ async def start(prompt: str, cwd: str, kind: str, workspace: str) -> Agent:
     pane_id = created["root_pane"]["pane_id"]
     # an agent name is required; the pane id makes it unique among live agents
     name = f"{kind}-" + pane_id.replace(":", "-").lower()
+    args = ("--", "--resume", resume) if resume else ()
     try:
-        await run("agent", "start", name, "--kind", kind, "--pane", pane_id)
+        await run("agent", "start", name, "--kind", kind, "--pane", pane_id, *args)
     except HerdrError:
         await run(*cleanup)
         raise
-    await submit(pane_id, prompt)
+    if prompt:
+        await submit(pane_id, prompt)
     agent = await get(pane_id)
     if agent is None:
         raise HerdrError(f"the new {KINDS[kind]} session in {pane_id} went away")
@@ -167,6 +178,11 @@ async def submit(pane_id: str, text: str) -> None:
         if not str(exc).startswith("agent_prompt_stalled"):
             raise
         await keys(pane_id, "enter")
+
+
+async def close(tab_id: str) -> None:
+    """Close a tab, and the agent session in it; the session can be resumed later."""
+    await run("tab", "close", tab_id)
 
 
 async def keys(pane_id: str, *names: str) -> None:

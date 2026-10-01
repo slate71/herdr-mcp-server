@@ -53,3 +53,24 @@ async def test_a_stalled_prompt_is_sent_with_enter(monkeypatch) -> None:
     monkeypatch.setattr(herdr, "run", run)
     await herdr.submit("w1:p5", "do it")
     assert calls[-1] == ("agent", "send-keys", "w1:p5", "enter")
+
+
+async def test_a_resumed_session_starts_on_its_id(monkeypatch) -> None:
+    calls = _fake(monkeypatch, [{"workspace_id": "w1", "label": "home"}])
+
+    async def start(*args: str) -> dict:
+        calls.append(args)
+        return {}
+
+    async def get(pane_id: str) -> herdr.Agent:
+        return herdr.Agent(pane_id, "Essay", "/x", "home", "idle", False, "s1")
+
+    real = herdr.run
+    monkeypatch.setattr(
+        herdr, "run", lambda *a: start(*a) if a[:2] == ("agent", "start") else real(*a)
+    )
+    monkeypatch.setattr(herdr, "get", get)
+    await herdr.start("", "/x", "claude", "home", resume="s1")
+    assert calls[-1][-3:] == ("--", "--resume", "s1")
+    # nothing is typed into a session reopened with no prompt
+    assert not any(c[:2] == ("agent", "prompt") for c in calls)

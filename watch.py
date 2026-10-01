@@ -47,7 +47,12 @@ def outcome(agent: herdr.Agent) -> str:
     if log.last_text:
         text += f"\nLast message: {log.last_text}"
     # the session holds what it found, so a follow-up is its question to answer
-    return text + f"\nSend follow-ups about this to prompt_herdr_agent({pane})."
+    text += f"\nSend follow-ups about this to prompt_herdr_agent({pane})."
+    if agent.session_id:
+        text += (
+            f' Its session is "{agent.session_id}", which resume_herdr_agent reopens.'
+        )
+    return text
 
 
 async def settle(

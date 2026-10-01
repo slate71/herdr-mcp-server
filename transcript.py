@@ -76,6 +76,22 @@ def _path(session_id: str) -> Path | None:
     return next(settings.claude_projects.glob(f"*/{session_id}.jsonl"), None)
 
 
+def cwd(session_id: str) -> str | None:
+    """The folder a session ran in, which resuming it needs; None for no such session."""
+    path = _path(session_id)
+    if path is None:
+        return None
+    with path.open("rb") as f:
+        for raw in f:
+            try:
+                folder = json.loads(raw).get("cwd")
+            except ValueError:
+                continue
+            if folder:
+                return folder
+    return None
+
+
 def read(session_id: str) -> Transcript:
     path = _path(session_id)
     if path is None:

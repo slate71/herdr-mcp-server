@@ -91,3 +91,9 @@ def test_interrupt_ends_the_turn(tmp_path, monkeypatch) -> None:
 def test_new_prompt_clears_an_interrupt(tmp_path, monkeypatch) -> None:
     _write(tmp_path, monkeypatch, [_prompt("a"), _interrupt(), _prompt("b")])
     assert not transcript.read("s1").interrupted
+
+
+def test_the_folder_a_session_ran_in(tmp_path, monkeypatch) -> None:
+    _write(tmp_path, monkeypatch, [{"type": "summary"}, {**_prompt("hi"), "cwd": "/w"}])
+    assert transcript.cwd("s1") == "/w"
+    assert transcript.cwd("missing") is None

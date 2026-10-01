@@ -34,6 +34,10 @@ class Settings:
     subscription_ttl: float
     # characters of Claude Code's last message a result carries
     max_text: int
+    # the tabs this server opened, kept across restarts so it can close them
+    tabs_file: Path
+    # hours a session it opened may sit idle before its tab is closed; 0 = never
+    close_after: float
 
 
 def load_settings() -> Settings:
@@ -51,6 +55,8 @@ def load_settings() -> Settings:
         state_file=state.expanduser() / "subscriptions.json",
         subscription_ttl=float(os.getenv("HERDR_MCP_SUBSCRIPTION_TTL_HOURS", "24")),
         max_text=int(os.getenv("HERDR_MCP_MAX_TEXT", "800")),
+        tabs_file=state.expanduser() / "tabs.json",
+        close_after=float(os.getenv("HERDR_MCP_CLOSE_AFTER_HOURS", "6")),
     )
 
 

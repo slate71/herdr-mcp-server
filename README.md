@@ -19,10 +19,16 @@ It was built for the [Home Assistant voice agent](https://github.com/longcw/home
 | `answer_herdr_permission(agent, allow)` | Approves once, or refuses, the permission prompt a session is blocked on |
 | `start_herdr_agent(prompt, kind?, folder?, workspace?)` | Starts an agent (`claude`) on a task, in a folder under `~/code` by default |
 | `stop_herdr_agent(agent)` | Interrupts a working session |
+| `close_herdr_agent(agent)` | Closes the tab of a session that is not working; only tabs this server opened, or ones in its workspace |
+| `resume_herdr_agent(session, prompt?)` | Reopens a closed session by its session id, where it left off, and sends it the prompt if one is given |
 
-An `agent` argument is a description, not an id: words from the title ("the agents-js issue"), a folder or workspace, a state ("the blocked one"), "the focused one", or a pane id. When more than one session fits, the tool lists them so the client can ask which one.
+An `agent` argument is a description, not an id: words from the title ("the agents-js issue"), a folder or workspace, a state ("the blocked one"), "the focused one", a pane id or a session id. When more than one session fits, the tool lists them so the client can ask which one.
 
-The tool descriptions tell the calling model to confirm before `start_herdr_agent` and before approving a permission, and to send follow-ups about a session's work back to that session instead of answering them itself. Every result names the session's pane id for that. The server does not enforce any of it.
+The tool descriptions tell the calling model to confirm before `start_herdr_agent` and before approving a permission, to send follow-ups about a session's work back to that session instead of answering them itself, and to ask the person before closing a session once its task is done. Every result names the session's pane id for that, and its Claude Code session id, which reopens it after it is closed. The server does not enforce any of it.
+
+## Closing sessions
+
+A closed tab ends the terminal, but the session stays on disk under `~/.claude/projects`, so `resume_herdr_agent` reopens it with `claude --resume` in the folder it ran in. The server remembers the tabs it opened in `~/.local/state/herdr-mcp-server/tabs.json`, and closes one whose session has been idle or done for `HERDR_MCP_CLOSE_AFTER_HOURS`. A blocked session waits for the person and is never closed, and neither is a session the person opened themselves.
 
 ## Results that outlive a tool call
 
@@ -66,6 +72,7 @@ The server has no authentication of its own, and a client can use it to run code
 | `HERDR_MCP_WATCH_WINDOW` | `60` | Seconds a tool call waits before its result goes to the webhook instead |
 | `HERDR_MCP_SETTLE` | `4` | Seconds a session has to stay idle or blocked before it counts as settled |
 | `HERDR_MCP_SUBSCRIPTION_TTL_HOURS` | `24` | How long a webhook waits for its session before it is dropped |
+| `HERDR_MCP_CLOSE_AFTER_HOURS` | `6` | Hours a session this server opened may sit finished before its tab is closed; `0` never closes one |
 | `HERDR_BIN` | `herdr` on `PATH` | The herdr CLI |
 
 ## Limits

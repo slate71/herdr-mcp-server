@@ -22,12 +22,15 @@ from pydantic import Field
 
 import herdr
 import match
+import transcript
 import watch
 from config import settings
+from tabs import Tabs
 
 logger = logging.getLogger("herdr-mcp-server")
 
 subscriptions = watch.Subscriptions()
+tabs = Tabs()
 
 # the default folder as a person would say it
 _code_dir = str(settings.code_dir).replace(str(Path.home()), "~", 1)
@@ -40,8 +43,8 @@ AgentRef = Annotated[
     str,
     Field(
         description="Which agent session: words from its title, its folder or workspace, "
-        "its state (e.g. 'blocked'), 'the focused one', or its pane id (e.g. 'w3:p2'). "
-        "Use the pane id from an earlier result when there is one."
+        "its state (e.g. 'blocked'), 'the focused one', its pane id (e.g. 'w3:p2') or "
+        "its session id. Use the pane id from an earlier result when there is one."
     ),
 ]
 
@@ -245,8 +248,62 @@ async def start_herdr_agent(
     except herdr.HerdrError as exc:
         raise ToolError(f"could not start {herdr.KINDS[kind]}: {exc}") from exc
     logger.info("started %s %s in %s", kind, found.pane_id, cwd)
+    tabs.add(found)
     started = f"Started {herdr.KINDS[kind]} in {found.folder}, pane {found.pane_id}.\n"
     return started + await _follow(ctx, found, expect_work=True)
+
+
+@mcp.tool()
+async def resume_herdr_agent(
+    ctx: Context,
+    session: Annotated[
+        str, Field(description="The session id an earlier result named.")
+    ],
+    prompt: Annotated[
+        str,
+        Field(description="A message for it once it is open; empty only reopens it."),
+    ] = "",
+) -> str:
+    """Reopen a closed agent session by its session id, where it left off.
+
+    A session still open just gets the prompt. No confirmation needed.
+    """
+    session = session.strip()
+    found = next((a for a in await herdr.agents() if a.session_id == session), None)
+    try:
+        if found is None:
+            if (cwd := transcript.cwd(session)) is None:
+                raise ToolError(f"No session {session!r} on this computer.")
+            found = await herdr.start(
+                "", cwd, "claude", settings.workspace_label, resume=session
+            )
+            tabs.add(found)
+            logger.info("resumed %s in %s", session, found.pane_id)
+        if prompt.strip():
+            await herdr.submit(found.pane_id, prompt)
+    except herdr.HerdrError as exc:
+        raise ToolError(f"could not resume {session}: {exc}") from exc
+    opened = f'"{found.title}" is open in pane {found.pane_id}.\n'
+    if not prompt.strip():
+        return opened + found.describe(detail=True)
+    return opened + await _follow(ctx, found, expect_work=True)
+
+
+@mcp.tool()
+async def close_herdr_agent(agent: AgentRef) -> str:
+    """Close an agent session's tab once the person agrees; ask them when its task is
+    done. The session stays on disk, so resume_herdr_agent reopens it by its id."""
+    found = await _find(agent)
+    if found.status == "working":
+        raise ToolError(f'"{found.title}" is still working; stop it first.')
+    if not (tabs.opened(found) or found.workspace == settings.workspace_label):
+        # a session the person opened themselves stays theirs to close
+        raise ToolError(f'"{found.title}" was not opened from here; close it in herdr.')
+    try:
+        await tabs.close(found)
+    except herdr.HerdrError as exc:
+        raise ToolError(str(exc)) from exc
+    return f'Closed "{found.title}". resume_herdr_agent(session "{found.session_id}") reopens it.'
 
 
 @mcp.tool()
@@ -268,11 +325,15 @@ if __name__ == "__main__":
     @contextlib.asynccontextmanager
     async def lifespan(app):
         async with serve_mcp(app):
-            task = asyncio.create_task(subscriptions.run())
+            tasks = [
+                asyncio.create_task(subscriptions.run()),
+                asyncio.create_task(tabs.run()),
+            ]
             try:
                 yield
             finally:
-                task.cancel()
+                for task in tasks:
+                    task.cancel()
 
     app.router.lifespan_context = lifespan
     uvicorn.run(app, host=settings.host, port=settings.port)

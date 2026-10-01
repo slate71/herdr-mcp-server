@@ -68,12 +68,13 @@ def search(query: str, agents: list[Agent]) -> list[Agent]:
 
 
 def resolve(query: str, agents: list[Agent]) -> Agent:
-    """The one agent ``query`` names by title, folder, workspace, state or pane id."""
+    """The one agent ``query`` names by title, folder, workspace, state, pane id or
+    session id."""
     query = query.strip()
     if not agents:
         raise Ambiguous("No coding agent is open in herdr.")
     for agent in agents:
-        if query == agent.pane_id:
+        if query and query in (agent.pane_id, agent.session_id):
             return agent
     words = _words(query)
     if words & _FOCUSED:
