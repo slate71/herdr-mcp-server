@@ -18,8 +18,10 @@ import anyio
 import uvicorn
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 
+import auth
 import herdr
 import match
 import transcript
@@ -49,8 +51,17 @@ AgentRef = Annotated[
 ]
 
 
-# given the real host, FastMCP only guards against DNS rebinding when bound to localhost
-mcp = FastMCP("herdr", host=settings.host, port=settings.port)
+# given the real host, FastMCP only guards against DNS rebinding when bound to localhost.
+# A token makes that guard redundant (a page in the person's browser cannot add the
+# header) and wrong behind a tunnel, whose Host is not localhost, so it is turned off.
+_security = (
+    TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    if settings.token
+    else None
+)
+mcp = FastMCP(
+    "herdr", host=settings.host, port=settings.port, transport_security=_security
+)
 
 
 async def _find(ref: str) -> herdr.Agent:
@@ -336,4 +347,19 @@ if __name__ == "__main__":
                     task.cancel()
 
     app.router.lifespan_context = lifespan
-    uvicorn.run(app, host=settings.host, port=settings.port)
+    if settings.token:
+        logger.info("requiring a bearer token")
+    if settings.trusted_peers:
+        peers = ", ".join(str(n) for n in settings.trusted_peers)
+        logger.info(
+            "requiring a peer in %s (by %s)",
+            peers,
+            settings.peer_header or "socket address",
+        )
+    guarded = auth.Guard(
+        app,
+        token=settings.token,
+        peers=settings.trusted_peers,
+        peer_header=settings.peer_header,
+    )
+    uvicorn.run(guarded, host=settings.host, port=settings.port)

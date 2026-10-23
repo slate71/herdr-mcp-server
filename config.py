@@ -9,6 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import auth
+
 load_dotenv()
 
 
@@ -38,6 +40,12 @@ class Settings:
     tabs_file: Path
     # hours a session it opened may sit idle before its tab is closed; 0 = never
     close_after: float
+    # the bearer token every request must carry; empty asks for none
+    token: str
+    # networks a caller must come from; empty allows any
+    trusted_peers: tuple[auth.Network, ...]
+    # the header a tunnel in front puts the caller's address in; empty = socket peer
+    peer_header: str
 
 
 def load_settings() -> Settings:
@@ -57,6 +65,9 @@ def load_settings() -> Settings:
         max_text=int(os.getenv("HERDR_MCP_MAX_TEXT", "800")),
         tabs_file=state.expanduser() / "tabs.json",
         close_after=float(os.getenv("HERDR_MCP_CLOSE_AFTER_HOURS", "6")),
+        token=os.getenv("HERDR_MCP_TOKEN", "").strip(),
+        trusted_peers=auth.networks(os.getenv("HERDR_MCP_TRUSTED_PEERS", "")),
+        peer_header=os.getenv("HERDR_MCP_PEER_HEADER", "").strip(),
     )
 
 
