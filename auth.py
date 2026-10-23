@@ -49,11 +49,18 @@ def trusted(peer: str, allowed: tuple[Network, ...]) -> bool:
     return any(address in net for net in allowed)
 
 
-def bearer(scope: Scope) -> str:
+def token_of(scope: Scope, header: str = "Authorization") -> str:
+    """The token the request carries: a Bearer credential in Authorization, or the
+    whole value of another header, for clients that reserve Authorization for OAuth."""
+    name = header.casefold().encode()
     for key, value in scope.get("headers") or []:
-        if key == b"authorization":
-            scheme, _, token = value.decode(errors="replace").partition(" ")
-            return token.strip() if scheme.casefold() == "bearer" else ""
+        if key != name:
+            continue
+        text = value.decode(errors="replace").strip()
+        if name != b"authorization":
+            return text
+        scheme, _, token = text.partition(" ")
+        return token.strip() if scheme.casefold() == "bearer" else ""
     return ""
 
 
@@ -65,11 +72,13 @@ class Guard:
         app: ASGIApp,
         *,
         token: str = "",
+        token_header: str = "Authorization",
         peers: tuple[Network, ...] = (),
         peer_header: str = "",
     ) -> None:
         self.app = app
         self.token = token
+        self.token_header = token_header or "Authorization"
         self.peers = peers
         self.peer_header = peer_header
 
@@ -82,9 +91,14 @@ class Guard:
             logger.warning("refused %s: not a trusted peer", peer or "?")
             await _refuse(scope, send, 403)
             return
-        if self.token and not hmac.compare_digest(bearer(scope), self.token):
-            logger.warning("refused %s: bad or missing bearer token", peer or "?")
-            await _refuse(scope, send, 401, ((b"www-authenticate", b"Bearer"),))
+        if self.token and not hmac.compare_digest(
+            token_of(scope, self.token_header), self.token
+        ):
+            logger.warning("refused %s: bad or missing token", peer or "?")
+            challenge = ((b"www-authenticate", b"Bearer"),)
+            if self.token_header.casefold() != "authorization":
+                challenge = ()
+            await _refuse(scope, send, 401, challenge)
             return
         await self.app(scope, receive, send)
 

@@ -64,7 +64,7 @@ The server only talks to a herdr server that is already running; it never starts
 
 A client can use this server to run code on this computer. Out of the box it has no authentication, so only expose it on a network you trust, such as a home LAN reachable from outside only through Tailscale. For anything further than that, turn on one or both checks:
 
-- `HERDR_MCP_TOKEN`: every request must carry `Authorization: Bearer <token>`. Make one with `openssl rand -hex 32`. Clients that call MCP servers from the cloud, such as Claude's custom connectors, send a fixed header like this.
+- `HERDR_MCP_TOKEN`: every request must carry `Authorization: Bearer <token>`. Make one with `openssl rand -hex 32`. A client that reserves `Authorization` for its own OAuth, as Claude's custom connectors do, can send the bare token in another header instead: set `HERDR_MCP_TOKEN_HEADER` to that header's name, e.g. `X-Auth-Token`.
 - `HERDR_MCP_TRUSTED_PEERS`: a comma-separated list of addresses or CIDR networks the caller must come from. Anthropic publishes the ranges its MCP tool calls originate from.
 
 Behind a tunnel that terminates TLS on this machine and forwards to the server (Tailscale Funnel, Cloudflare Tunnel), the socket peer is the tunnel itself. Set `HERDR_MCP_HOST=127.0.0.1` so only the tunnel can reach the port, and `HERDR_MCP_PEER_HEADER` to the header the tunnel puts the caller's address in (`X-Forwarded-For`, or `CF-Connecting-IP` for Cloudflare) so the peer check reads that instead. With a token set, FastMCP's localhost Host-header check is turned off, since the tunnel's hostname would fail it and the token already covers what it guards against.
@@ -80,6 +80,7 @@ Behind a tunnel that terminates TLS on this machine and forwards to the server (
 | `HERDR_MCP_CLOSE_AFTER_HOURS` | `6` | Hours a session this server opened may sit finished before its tab is closed; `0` never closes one |
 | `HERDR_BIN` | `herdr` on `PATH` | The herdr CLI |
 | `HERDR_MCP_TOKEN` | unset | Bearer token every request must carry; unset requires none |
+| `HERDR_MCP_TOKEN_HEADER` | `Authorization` | Header carrying the token: `Authorization` as `Bearer <token>`, any other header as the bare token |
 | `HERDR_MCP_TRUSTED_PEERS` | unset | Addresses or CIDR networks a caller must come from; unset allows any |
 | `HERDR_MCP_PEER_HEADER` | unset | Header holding the caller's address behind a tunnel, e.g. `X-Forwarded-For`; unset uses the socket peer |
 

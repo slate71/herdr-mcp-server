@@ -37,6 +37,19 @@ async def test_a_token_is_required_once_set(headers, status) -> None:
         assert resp.headers["www-authenticate"] == "Bearer"
 
 
+async def test_the_token_can_ride_in_another_header() -> None:
+    guard = auth.Guard(_ok, token="secret", token_header="X-Auth-Token")
+    async with _client(guard) as c:
+        assert (await c.get("/mcp")).status_code == 401
+        bearer = {"Authorization": "Bearer secret"}
+        assert (await c.get("/mcp", headers=bearer)).status_code == 401
+        plain = {"X-Auth-Token": "secret"}
+        assert (await c.get("/mcp", headers=plain)).status_code == 200
+        # the whole value is the token, so a Bearer prefix there does not match
+        prefixed = {"x-auth-token": "Bearer secret"}
+        assert (await c.get("/mcp", headers=prefixed)).status_code == 401
+
+
 async def test_peers_are_checked_by_socket_address() -> None:
     guard = auth.Guard(_ok, peers=auth.networks("10.0.0.0/8, 127.0.0.1"))
     async with _client(guard, peer="10.1.2.3") as c:
