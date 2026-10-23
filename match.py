@@ -42,7 +42,8 @@ def _score(query: str, agent: Agent) -> float:
     words = _words(query)
     if not words:
         return 0.0
-    title = agent.title.casefold()
+    # the person's own name for the tab is what they will say first
+    title = f"{agent.label} {agent.title}".casefold()
     haystack = f"{title} {agent.folder} {agent.workspace} {agent.pane_id}".casefold()
     in_title = sum(1 for w in words if w in title) / len(words)
     # a folder or workspace is shared by many sessions, so it weighs less than a title
@@ -76,6 +77,10 @@ def resolve(query: str, agents: list[Agent]) -> Agent:
     for agent in agents:
         if query and query in (agent.pane_id, agent.session_id):
             return agent
+    # the tab's name, said exactly, is the person's own id for it
+    named = [a for a in agents if a.label and a.label.casefold() == query.casefold()]
+    if len(named) == 1:
+        return named[0]
     words = _words(query)
     if words & _FOCUSED:
         focused = [t for t in agents if t.focused]
