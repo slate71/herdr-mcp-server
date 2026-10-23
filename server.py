@@ -348,7 +348,7 @@ if __name__ == "__main__":
 
     app.router.lifespan_context = lifespan
     if settings.token:
-        logger.info("requiring a bearer token")
+        logger.info("requiring the token in %s", settings.token_header)
     if settings.trusted_peers:
         peers = ", ".join(str(n) for n in settings.trusted_peers)
         logger.info(
@@ -359,6 +359,7 @@ if __name__ == "__main__":
     guarded = auth.Guard(
         app,
         token=settings.token,
+        token_header=settings.token_header,
         peers=settings.trusted_peers,
         peer_header=settings.peer_header,
     )

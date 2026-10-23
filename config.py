@@ -45,6 +45,8 @@ class Settings:
     close_after: float
     # the bearer token every request must carry; empty asks for none
     token: str
+    # the header carrying it: Authorization (as Bearer), or another header's whole value
+    token_header: str
     # networks a caller must come from; empty allows any
     trusted_peers: tuple[auth.Network, ...]
     # the header a tunnel in front puts the caller's address in; empty = socket peer
@@ -69,6 +71,7 @@ def load_settings() -> Settings:
         tabs_file=state.expanduser() / "tabs.json",
         close_after=float(os.getenv("HERDR_MCP_CLOSE_AFTER_HOURS", "6")),
         token=os.getenv("HERDR_MCP_TOKEN", "").strip(),
+        token_header=os.getenv("HERDR_MCP_TOKEN_HEADER", "Authorization").strip(),
         trusted_peers=auth.networks(os.getenv("HERDR_MCP_TRUSTED_PEERS", "")),
         peer_header=os.getenv("HERDR_MCP_PEER_HEADER", "").strip(),
     )
