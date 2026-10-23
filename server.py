@@ -42,9 +42,10 @@ _MAX_LISTED = 8
 AgentRef = Annotated[
     str,
     Field(
-        description="Which agent session: words from its title, its folder or workspace, "
-        "its state (e.g. 'blocked'), 'the focused one', its pane id (e.g. 'w3:p2') or "
-        "its session id. Use the pane id from an earlier result when there is one."
+        description="Which agent session: the name of its tab in herdr (e.g. 'operator'), "
+        "words from its title, its folder or workspace, its state (e.g. 'blocked'), "
+        "'the focused one', its pane id (e.g. 'w3:p2') or its session id. Use the pane "
+        "id from an earlier result when there is one."
     ),
 ]
 

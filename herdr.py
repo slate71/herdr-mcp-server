@@ -52,6 +52,8 @@ class Agent:
     session_id: str
     kind: str = "claude"
     tab_id: str = ""
+    # the name the person gave its tab in herdr, the way they refer to it
+    label: str = ""
 
     @property
     def transcript(self) -> transcript.Transcript:
@@ -74,8 +76,11 @@ class Agent:
         if log.mtime:
             minutes = int((time.time() - log.mtime) // 60)
             age = ", active just now" if minutes < 1 else f", active {minutes} min ago"
+        named = (
+            f'"{self.label}" ("{self.title}", ' if self.label else f'"{self.title}" ('
+        )
         line = (
-            f'"{self.title}" ({KINDS[self.kind]}, pane {self.pane_id}) [{state}] '
+            f"{named}{KINDS[self.kind]}, pane {self.pane_id}) [{state}] "
             f"in {self.folder} (workspace {self.workspace}{age})"
         )
         if self.session_id:
@@ -85,9 +90,10 @@ class Agent:
         return line
 
 
-def _agent(agent: dict, labels: dict[str, str]) -> Agent:
+def _agent(agent: dict, labels: dict[str, str], tabs: dict[str, str]) -> Agent:
     session = agent.get("agent_session") or {}
     return Agent(
+        label=tabs.get(agent.get("tab_id") or "", ""),
         pane_id=agent["pane_id"],
         title=agent.get("terminal_title_stripped")
         or agent.get("name")
@@ -109,21 +115,38 @@ async def _labels() -> dict[str, str]:
     return {w["workspace_id"]: w.get("label") or w["workspace_id"] for w in workspaces}
 
 
+def tab_labels(tabs: list[dict]) -> dict[str, str]:
+    """Each tab's label, when the person set one: herdr's own are bare numbers."""
+    return {
+        t["tab_id"]: t["label"]
+        for t in tabs
+        if t.get("label") and not t["label"].strip().isdigit()
+    }
+
+
+async def _tabs() -> dict[str, str]:
+    return tab_labels((await run("tab", "list")).get("tabs") or [])
+
+
 async def agents() -> list[Agent]:
     """Every agent herdr hosts, across all workspaces, of a kind this server reads."""
-    found, labels = await asyncio.gather(run("agent", "list"), _labels())
+    found, labels, tabs = await asyncio.gather(run("agent", "list"), _labels(), _tabs())
     return [
-        _agent(a, labels) for a in found.get("agents") or [] if a.get("agent") in KINDS
+        _agent(a, labels, tabs)
+        for a in found.get("agents") or []
+        if a.get("agent") in KINDS
     ]
 
 
 async def get(pane_id: str) -> Agent | None:
     """The agent in one pane, or None once it has gone."""
     try:
-        found, labels = await asyncio.gather(run("agent", "get", pane_id), _labels())
+        found, labels, tabs = await asyncio.gather(
+            run("agent", "get", pane_id), _labels(), _tabs()
+        )
     except HerdrError:
         return None
-    return _agent(found["agent"], labels)
+    return _agent(found["agent"], labels, tabs)
 
 
 async def start(
