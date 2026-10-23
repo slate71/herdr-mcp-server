@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ID = os.environ.get("HERDR_PLUGIN_ID", "herdr-mcp-server")
 ENTRYPOINT = "server"
 TITLE = "herdr-mcp"
-WORKSPACE = os.environ.get("HERDR_MCP_WORKSPACE", "herdr-mcp")
+# the workspace the server pane lives in; agents it starts go where HERDR_MCP_WORKSPACE says
+WORKSPACE = "herdr-mcp"
 HERDR = os.environ.get("HERDR_BIN_PATH", "herdr")
 
 
