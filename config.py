@@ -9,6 +9,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# as a herdr plugin, user config lives in the plugin's config dir, read first
+if plugin_config := os.getenv("HERDR_PLUGIN_CONFIG_DIR"):
+    load_dotenv(Path(plugin_config) / ".env")
 load_dotenv()
 
 
