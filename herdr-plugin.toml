@@ -1,0 +1,29 @@
+# herdr-mcp-server as a herdr plugin: herdr owns the server's process, shows it
+# as a pane, and reopens it after a restart. The LaunchAgent in scripts/ is the
+# other way to run it; use one or the other.
+#
+#   herdr plugin install longcw/herdr-mcp-server
+#
+# Configuration is a .env file in the plugin's config dir (`herdr plugin
+# config-dir <id>`), read before one in the working directory.
+
+id = "herdr-mcp-server"
+name = "herdr MCP server"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "MCP server that drives the coding agents running in herdr"
+platforms = ["macos", "linux"]
+
+[[build]]
+command = ["sh", "bin/uv.sh", "sync", "--no-dev"]
+
+# The server is the one long-lived process; a managed pane is where a plugin keeps one.
+[[panes]]
+id = "server"
+title = "herdr-mcp"
+placement = "tab"
+command = ["sh", "bin/uv.sh", "run", "--no-dev", "python", "server.py"]
+
+# herdr restores a plugin pane's tab after a restart but not its process; reopen it.
+[[startup]]
+command = ["sh", "bin/uv.sh", "run", "--no-dev", "python", "scripts/ensure_pane.py"]
